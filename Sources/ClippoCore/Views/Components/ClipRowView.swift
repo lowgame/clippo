@@ -1,92 +1,110 @@
 import SwiftUI
+import AppKit
 
 public struct ClipRowView: View {
     let item: ClipItem
     let index: Int? // 1..9 or nil if beyond 9
+    let isSelected: Bool
+    let isNearBottom: Bool
+    let searchQuery: String
+    let activeOffset: Int?
     let onSelect: () -> Void
     let onDelete: () -> Void
+    let onHoverChanged: ((Bool) -> Void)?
 
     @Environment(\.colorScheme) var colorScheme
     @State private var isHovered: Bool = false
+    @State private var hasPushedCursor: Bool = false
     @State private var isPrimedForPurge: Bool = false
     @State private var purgeResetTask: Task<Void, Never>? = nil
 
     public init(
         item: ClipItem,
         index: Int?,
+        isSelected: Bool = false,
+        isNearBottom: Bool = false,
+        searchQuery: String = "",
+        activeOffset: Int? = nil,
         onSelect: @escaping () -> Void,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onHoverChanged: ((Bool) -> Void)? = nil
     ) {
         self.item = item
         self.index = index
+        self.isSelected = isSelected
+        self.isNearBottom = isNearBottom
+        self.searchQuery = searchQuery
+        self.activeOffset = activeOffset
         self.onSelect = onSelect
         self.onDelete = onDelete
+        self.onHoverChanged = onHoverChanged
     }
 
     public var body: some View {
-        HStack(alignment: isHovered ? .top : .center, spacing: MonocleTheme.spacingS) {
-            // Index number badge (1..9 or dot)
-            Group {
-                if let idx = index {
-                    Text("\(idx)")
-                        .font(MonocleTheme.fontNumber)
-                        .foregroundColor(MonocleTheme.neutral)
-                } else {
-                    Text("·")
-                        .font(MonocleTheme.fontNumber)
-                        .foregroundColor(MonocleTheme.neutral.opacity(0.5))
-                }
-            }
-            .frame(width: 14, alignment: .trailing)
-            .padding(.top, isHovered ? 1 : 0)
+        HStack(spacing: MonocleTheme.spacingS) {
+            // Text Content (With search match context snippet & high-contrast in-text highlighting)
+            let snippet = SearchHighlightEngine.snippet(content: item.content, query: searchQuery, targetOffset: activeOffset)
+            let highlighted = SearchHighlightEngine.highlight(text: snippet, query: searchQuery, isMono: true)
 
-            // Text Content (Single Line truncated normally, Full text on hover)
-            Text(isHovered ? item.content : item.cleanPreview)
-                .font(MonocleTheme.fontMono)
-                .lineLimit(isHovered ? nil : 1)
+            Text(highlighted)
+                .lineLimit(1)
                 .truncationMode(.tail)
-                .foregroundColor(MonocleTheme.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: isHovered)
 
-            // Micro-Meta and Purge Button (Reserved width to prevent layout shift)
-            HStack(spacing: MonocleTheme.spacingXS) {
-                // Character Count
-                Text(item.charCountLabel)
-                    .font(MonocleTheme.fontMeta)
-                    .foregroundColor(MonocleTheme.neutral)
-                    .opacity(isHovered ? 0.8 : 0.0)
+            // Pixel-Perfect Armored Two-Click Purge Button (Fixed metrics, zero layout shift)
+            Button(action: handlePurgeClick) {
+                ZStack {
+                    Circle()
+                        .fill(isPrimedForPurge ? MonocleTheme.foreground : Color.clear)
+                        .frame(width: 18, height: 18)
 
-                // Armored Two-Click Purge Button (× -> ◎)
-                Button(action: handlePurgeClick) {
-                    Text(isPrimedForPurge ? "◎" : "×")
-                        .font(.system(size: isPrimedForPurge ? 12 : 13, weight: isPrimedForPurge ? .bold : .light))
-                        .foregroundColor(isPrimedForPurge ? MonocleTheme.foreground : MonocleTheme.neutral)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
+                    Text("×")
+                        .font(.system(size: 13, weight: .regular, design: .default))
+                        .foregroundColor(isPrimedForPurge ? MonocleTheme.background : MonocleTheme.neutral)
                 }
-                .buttonStyle(.plain)
-                .opacity(isHovered || isPrimedForPurge ? 1.0 : 0.0)
-                .allowsHitTesting(isHovered || isPrimedForPurge)
+                .frame(width: 20, height: 20, alignment: .center)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .opacity(isHovered || isPrimedForPurge ? 1.0 : 0.0)
+            .allowsHitTesting(isHovered || isPrimedForPurge)
         }
         .padding(.horizontal, MonocleTheme.spacingS)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4)
+        .frame(height: 28)
         .background(
             RoundedRectangle(cornerRadius: 5)
-                .fill(isHovered ? MonocleTheme.rowHover : Color.clear)
+                .fill(isSelected ? MonocleTheme.neutral.opacity(0.25) : (isHovered ? MonocleTheme.rowHover : Color.clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(isSelected ? MonocleTheme.neutral.opacity(0.6) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {
             onSelect()
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
+            withAnimation(.easeInOut(duration: 0.1)) {
                 isHovered = hovering
-                if !hovering && !isPrimedForPurge {
-                    // reset hover
-                }
             }
+            setPointingCursor(hovering)
+            onHoverChanged?(hovering)
+        }
+        .onDisappear {
+            setPointingCursor(false)
+            purgeResetTask?.cancel()
+            purgeResetTask = nil
+        }
+    }
+
+    private func setPointingCursor(_ active: Bool) {
+        if active && !hasPushedCursor {
+            NSCursor.pointingHand.push()
+            hasPushedCursor = true
+        } else if !active && hasPushedCursor {
+            NSCursor.pop()
+            hasPushedCursor = false
         }
     }
 
@@ -98,14 +116,16 @@ public struct ClipRowView: View {
             isPrimedForPurge = false
             onDelete()
         } else {
-            // First click: prime for purge (inline armed state)
-            isPrimedForPurge = true
+            // First click: prime for purge (make x bold)
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isPrimedForPurge = true
+            }
             purgeResetTask?.cancel()
             purgeResetTask = Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 if !Task.isCancelled {
                     await MainActor.run {
-                        withAnimation {
+                        withAnimation(.easeInOut(duration: 0.12)) {
                             isPrimedForPurge = false
                         }
                     }

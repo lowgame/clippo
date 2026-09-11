@@ -3,6 +3,9 @@ import SwiftUI
 public struct SearchInputView: View {
     @Binding var text: String
     @FocusState.Binding var isFocused: Bool
+    let matchCount: Int
+    let currentMatchIndex: Int
+    let onNext: () -> Void
     let onClear: () -> Void
 
     @Environment(\.colorScheme) var colorScheme
@@ -10,30 +13,43 @@ public struct SearchInputView: View {
     public init(
         text: Binding<String>,
         isFocused: FocusState<Bool>.Binding,
+        matchCount: Int = 0,
+        currentMatchIndex: Int = 0,
+        onNext: @escaping () -> Void = {},
         onClear: @escaping () -> Void
     ) {
         self._text = text
         self._isFocused = isFocused
+        self.matchCount = matchCount
+        self.currentMatchIndex = currentMatchIndex
+        self.onNext = onNext
         self.onClear = onClear
     }
 
     public var body: some View {
         HStack(spacing: MonocleTheme.spacingS) {
-            // Bauhaus forward slash indicator
-            Text("/")
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundColor(MonocleTheme.neutral)
-                .frame(width: 16)
-
-            // Native TextField
+            // Direct native TextField without leading slash
             TextField("", text: $text)
                 .textFieldStyle(.plain)
                 .font(MonocleTheme.fontMono)
                 .foregroundColor(MonocleTheme.foreground)
                 .focused($isFocused)
+                .onSubmit {
+                    onNext()
+                }
 
-            // Inline Clear Button
+            // Search Match Counter & Clear Button
             if !text.isEmpty {
+                if matchCount > 0 {
+                    Text("\(currentMatchIndex + 1)/\(matchCount)")
+                        .font(MonocleTheme.fontMeta)
+                        .foregroundColor(MonocleTheme.neutral)
+                } else {
+                    Text("0")
+                        .font(MonocleTheme.fontMeta)
+                        .foregroundColor(MonocleTheme.neutral.opacity(0.6))
+                }
+
                 Button(action: {
                     text = ""
                     onClear()
@@ -45,6 +61,13 @@ public struct SearchInputView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { isInside in
+                    if isInside {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
             }
         }
         .padding(.horizontal, MonocleTheme.spacingM)

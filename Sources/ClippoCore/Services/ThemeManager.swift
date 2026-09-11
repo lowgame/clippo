@@ -35,6 +35,9 @@ public final class ThemeManager: ObservableObject {
             window.appearance = appearance
         } else if NSApp != nil {
             NSApp.appearance = appearance
+            for win in NSApp.windows {
+                win.appearance = appearance
+            }
         }
     }
 }

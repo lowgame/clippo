@@ -119,4 +119,8 @@ public final class StorageManager: ObservableObject {
         items.removeAll()
         saveHistory()
     }
+
+    public func setForPreview(items: [ClipItem]) {
+        self.items = items
+    }
 }

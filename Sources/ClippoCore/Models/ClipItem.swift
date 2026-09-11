@@ -27,6 +27,10 @@ public struct ClipItem: Identifiable, Codable, Equatable, Sendable {
         return singleLine.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    public var isMultiLineOrLong: Bool {
+        content.contains("\n") || content.count > 34
+    }
+
     public var charCount: Int {
         content.count
     }

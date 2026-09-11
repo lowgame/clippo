@@ -28,6 +28,11 @@ let package = Package(
             dependencies: ["ClippoCore"],
             path: "Sources/Clippo"
         ),
+        .executableTarget(
+            name: "ScreenshotGenerator",
+            dependencies: ["ClippoCore"],
+            path: "Sources/ScreenshotGenerator"
+        ),
         .testTarget(
             name: "ClippoTests",
             dependencies: ["ClippoCore"],

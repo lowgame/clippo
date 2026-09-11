@@ -12,10 +12,32 @@ final class ClippoPanel: NSPanel {
             return
         }
 
+        // Cmd+Return copies the active search match immediately
+        if event.keyCode == 36 && event.modifierFlags.contains(.command) {
+            NotificationCenter.default.post(name: .clippoCopyCurrentMatch, object: nil)
+            return
+        }
+
+        // Down Arrow (125) / Up Arrow (126) navigates search matches
+        if event.keyCode == 125 {
+            NotificationCenter.default.post(name: .clippoNextMatch, object: nil)
+            return
+        }
+        if event.keyCode == 126 {
+            NotificationCenter.default.post(name: .clippoPrevMatch, object: nil)
+            return
+        }
+
         // Check if text input is active
         let isTextInputActive = (firstResponder is NSTextView)
 
         if !isTextInputActive {
+            // Return key copies current match when not typing
+            if event.keyCode == 36 {
+                NotificationCenter.default.post(name: .clippoCopyCurrentMatch, object: nil)
+                return
+            }
+
             if let chars = event.charactersIgnoringModifiers,
                let num = Int(chars), num >= 1 && num <= 9,
                !event.modifierFlags.contains(.command),
@@ -36,6 +58,8 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
     private var statusItem: NSStatusItem?
     private var panel: ClippoPanel?
     private var eventMonitor: Any?
+
+    public var currentPanel: NSPanel? { panel }
 
     private let storage = StorageManager.shared
     private let monitor = ClipboardMonitor.shared
@@ -102,29 +126,29 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
             strokeColor.setStroke()
 
             let center = CGPoint(x: 9.0, y: 9.0)
-            let r: CGFloat = 5.4
+            let r: CGFloat = 5.8
+            let strokeWidth: CGFloat = 1.3
 
-            // Main circular arc sweeping around the bottom (from 130° clockwise to 50°)
+            let pTop = CGPoint(x: center.x, y: center.y + r)
+            let pRight = CGPoint(x: center.x + r, y: center.y)
+            let cornerTip = CGPoint(x: center.x + r * 0.30, y: center.y + r * 0.30)
+
             let path = NSBezierPath()
-            path.appendArc(withCenter: center, radius: r, startAngle: 130, endAngle: 50, clockwise: true)
-            path.lineWidth = 1.2
+            path.lineWidth = strokeWidth
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+
+            // Sweep from 90° counter-clockwise around the bottom to 0°
+            path.appendArc(withCenter: center, radius: r, startAngle: 90, endAngle: 0, clockwise: false)
+
+            // Crease line across to top
+            path.line(to: pTop)
+
+            // Folded corner flap
+            path.line(to: cornerTip)
+            path.line(to: pRight)
+
             path.stroke()
-
-            // Inward folded top arc dipping down
-            let leftPt = CGPoint(x: center.x - r * cos(50 * .pi / 180), y: center.y + r * sin(50 * .pi / 180))
-            let rightPt = CGPoint(x: center.x + r * cos(50 * .pi / 180), y: center.y + r * sin(50 * .pi / 180))
-            let foldApex = CGPoint(x: center.x, y: center.y + r * 0.15)
-
-            let foldPath = NSBezierPath()
-            foldPath.move(to: leftPt)
-            foldPath.curve(
-                to: rightPt,
-                controlPoint1: CGPoint(x: center.x - 1.5, y: foldApex.y),
-                controlPoint2: CGPoint(x: center.x + 1.5, y: foldApex.y)
-            )
-            foldPath.lineWidth = 1.2
-            foldPath.stroke()
-
             return true
         }
         image.isTemplate = true
@@ -194,17 +218,18 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         // Make sure focus is clean so 1..9 immediately work
         panel.makeFirstResponder(panel.contentView)
 
-        // Monitor clicks outside the panel to auto-dismiss
+        // Monitor clicks outside the panel (and preview panel) to auto-dismiss
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self = self, let p = self.panel, p.isVisible else { return }
             let mouseLocation = NSEvent.mouseLocation
-            if !p.frame.contains(mouseLocation) {
+            if !p.frame.contains(mouseLocation) && !ClippoPreviewPanelController.shared.contains(screenPoint: mouseLocation) {
                 self.closePanel()
             }
         }
     }
 
     public func closePanel() {
+        ClippoPreviewPanelController.shared.hide()
         panel?.orderOut(nil)
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -217,10 +242,14 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
     }
 
     public func selectSlot(_ index: Int) {
-        if index >= 0 && index < storage.items.count {
-            let item = storage.items[index]
-            monitor.copyToPasteboard(item: item)
-            closePanel()
-        }
+        NotificationCenter.default.post(name: .clippoSelectSlot, object: index)
     }
 }
+
+extension Notification.Name {
+    public static let clippoSelectSlot = Notification.Name("clippoSelectSlot")
+    public static let clippoCopyCurrentMatch = Notification.Name("clippoCopyCurrentMatch")
+    public static let clippoNextMatch = Notification.Name("clippoNextMatch")
+    public static let clippoPrevMatch = Notification.Name("clippoPrevMatch")
+}
+
