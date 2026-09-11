@@ -26,7 +26,7 @@ public struct SearchInputView: View {
                 .frame(width: 16)
 
             // Native TextField
-            TextField("type to filter...", text: $text)
+            TextField("", text: $text)
                 .textFieldStyle(.plain)
                 .font(MonocleTheme.fontMono)
                 .foregroundColor(MonocleTheme.foreground)

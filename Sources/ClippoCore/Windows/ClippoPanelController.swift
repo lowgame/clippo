@@ -12,12 +12,6 @@ final class ClippoPanel: NSPanel {
             return
         }
 
-        // Cmd+D toggles theme
-        if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "d" {
-            ThemeManager.shared.cycleTheme()
-            return
-        }
-
         // Check if text input is active
         let isTextInputActive = (firstResponder is NSTextView)
 
@@ -65,8 +59,6 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         // App Menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Clippo")
-        appMenu.addItem(withTitle: "Toggle Theme", action: #selector(toggleThemeAction), keyEquivalent: "d")
-        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Quit Clippo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
@@ -88,10 +80,6 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         NSApp.mainMenu = mainMenu
     }
 
-    @objc private func toggleThemeAction() {
-        ThemeManager.shared.cycleTheme()
-    }
-
     // MARK: - Status Item Setup (Template Overlapping Pills Icon)
 
     private func setupStatusItem() {
@@ -110,19 +98,32 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
 
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
-            // Minimalist overlapping double capsules (Bauhaus paperclip silhouette)
             let strokeColor = NSColor.labelColor
             strokeColor.setStroke()
 
-            // Outer Capsule Loop
-            let outerPath = NSBezierPath(roundedRect: NSRect(x: 3.5, y: 3.0, width: 8.0, height: 12.0), xRadius: 4.0, yRadius: 4.0)
-            outerPath.lineWidth = 1.3
-            outerPath.stroke()
+            let center = CGPoint(x: 9.0, y: 9.0)
+            let r: CGFloat = 5.4
 
-            // Intersecting / Inner Capsule Loop
-            let innerPath = NSBezierPath(roundedRect: NSRect(x: 6.5, y: 5.5, width: 8.0, height: 9.5), xRadius: 4.0, yRadius: 4.0)
-            innerPath.lineWidth = 1.3
-            innerPath.stroke()
+            // Main circular arc sweeping around the bottom (from 130° clockwise to 50°)
+            let path = NSBezierPath()
+            path.appendArc(withCenter: center, radius: r, startAngle: 130, endAngle: 50, clockwise: true)
+            path.lineWidth = 1.2
+            path.stroke()
+
+            // Inward folded top arc dipping down
+            let leftPt = CGPoint(x: center.x - r * cos(50 * .pi / 180), y: center.y + r * sin(50 * .pi / 180))
+            let rightPt = CGPoint(x: center.x + r * cos(50 * .pi / 180), y: center.y + r * sin(50 * .pi / 180))
+            let foldApex = CGPoint(x: center.x, y: center.y + r * 0.15)
+
+            let foldPath = NSBezierPath()
+            foldPath.move(to: leftPt)
+            foldPath.curve(
+                to: rightPt,
+                controlPoint1: CGPoint(x: center.x - 1.5, y: foldApex.y),
+                controlPoint2: CGPoint(x: center.x + 1.5, y: foldApex.y)
+            )
+            foldPath.lineWidth = 1.2
+            foldPath.stroke()
 
             return true
         }

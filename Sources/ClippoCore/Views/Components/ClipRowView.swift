@@ -24,7 +24,7 @@ public struct ClipRowView: View {
     }
 
     public var body: some View {
-        HStack(spacing: MonocleTheme.spacingS) {
+        HStack(alignment: isHovered ? .top : .center, spacing: MonocleTheme.spacingS) {
             // Index number badge (1..9 or dot)
             Group {
                 if let idx = index {
@@ -38,14 +38,16 @@ public struct ClipRowView: View {
                 }
             }
             .frame(width: 14, alignment: .trailing)
+            .padding(.top, isHovered ? 1 : 0)
 
-            // Text Preview (Single Line, Truncated)
-            Text(item.cleanPreview)
+            // Text Content (Single Line truncated normally, Full text on hover)
+            Text(isHovered ? item.content : item.cleanPreview)
                 .font(MonocleTheme.fontMono)
-                .lineLimit(1)
+                .lineLimit(isHovered ? nil : 1)
                 .truncationMode(.tail)
                 .foregroundColor(MonocleTheme.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: isHovered)
 
             // Micro-Meta and Purge Button (Reserved width to prevent layout shift)
             HStack(spacing: MonocleTheme.spacingXS) {

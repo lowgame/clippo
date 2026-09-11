@@ -91,33 +91,24 @@ public struct ClippoPopoverView: View {
                 .fill(MonocleTheme.microBorder)
                 .frame(height: 1)
 
-            // Footer / Status & Shortcuts
+            // Footer: Minimal Theme Mode Glyph
             HStack {
-                // Item count
-                Text("\(filteredItems.count)/\(storage.items.count) clips")
-                    .font(MonocleTheme.fontMeta)
-                    .foregroundColor(MonocleTheme.neutral)
-
                 Spacer()
 
-                // Theme switch indicator (⌘D)
                 Button(action: {
                     themeManager.cycleTheme()
                 }) {
-                    HStack(spacing: 3) {
-                        Text("⌘D")
-                            .font(MonocleTheme.fontMeta)
-                            .foregroundColor(MonocleTheme.neutral)
-                        Text(themeManager.currentMode.title)
-                            .font(MonocleTheme.fontMeta)
-                            .foregroundColor(MonocleTheme.neutral.opacity(0.7))
-                    }
+                    Text(themeManager.currentMode.symbol)
+                        .font(.system(size: 13, weight: .regular, design: .monospaced))
+                        .foregroundColor(MonocleTheme.neutral)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Tema Değiştir (⌘D)")
+                .help(themeManager.currentMode.title)
             }
             .padding(.horizontal, MonocleTheme.spacingM)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .background(MonocleTheme.background.opacity(0.8))
         }
         .frame(width: 320)

@@ -14,6 +14,14 @@ public enum ThemeMode: String, CaseIterable, Codable, Sendable {
         }
     }
 
+    public var symbol: String {
+        switch self {
+        case .dark: return "●"
+        case .light: return "○"
+        case .system: return "-"
+        }
+    }
+
     public var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
@@ -32,9 +40,9 @@ public enum ThemeMode: String, CaseIterable, Codable, Sendable {
 
     public var next: ThemeMode {
         switch self {
-        case .system: return .dark
         case .dark: return .light
         case .light: return .system
+        case .system: return .dark
         }
     }
 }

@@ -65,17 +65,20 @@ final class ClippoTests: XCTestCase {
     @MainActor
     func testThemeCycle() {
         let themeManager = ThemeManager.shared
-        themeManager.setMode(.system)
-        XCTAssertEqual(themeManager.currentMode, .system)
-
-        themeManager.cycleTheme()
+        themeManager.setMode(.dark)
         XCTAssertEqual(themeManager.currentMode, .dark)
+        XCTAssertEqual(themeManager.currentMode.symbol, "●")
 
         themeManager.cycleTheme()
         XCTAssertEqual(themeManager.currentMode, .light)
+        XCTAssertEqual(themeManager.currentMode.symbol, "○")
 
         themeManager.cycleTheme()
         XCTAssertEqual(themeManager.currentMode, .system)
+        XCTAssertEqual(themeManager.currentMode.symbol, "-")
+
+        themeManager.cycleTheme()
+        XCTAssertEqual(themeManager.currentMode, .dark)
     }
 
     @MainActor

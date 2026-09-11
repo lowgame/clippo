@@ -1,7 +1,7 @@
 import AppKit
 import CoreGraphics
 
-func renderClippoIcon(size: CGSize) -> NSImage {
+func renderFoldedCircleIcon(size: CGSize) -> NSImage {
     let image = NSImage(size: size)
     image.lockFocus()
     guard let ctx = NSGraphicsContext.current?.cgContext else {
@@ -10,8 +10,6 @@ func renderClippoIcon(size: CGSize) -> NSImage {
     }
 
     let scale = size.width / 1024.0
-
-    // Canvas size
     let w = size.width
     let h = size.height
 
@@ -58,70 +56,107 @@ func renderClippoIcon(size: CGSize) -> NSImage {
     ctx.setLineWidth(2.0 * scale)
     ctx.strokePath()
 
-    // 4. Overlapping Double Capsules (The Clippo Bauhaus Motif)
+    // 4. THE GLOWING FOLDED CIRCLE (Clippo Motif)
+    let center = CGPoint(x: w / 2.0, y: h / 2.0)
+    let r: CGFloat = 220.0 * scale
     let strokeWidth: CGFloat = 26.0 * scale
-    let capsuleW: CGFloat = 180.0 * scale
-    let capsuleH: CGFloat = 380.0 * scale
-    let capsuleR: CGFloat = capsuleW / 2.0 // Perfect pill capsule
 
-    // First Capsule (Left, slightly higher)
-    let leftCapsuleRect = CGRect(
-        x: w / 2.0 - 135.0 * scale,
-        y: h / 2.0 - 160.0 * scale,
-        width: capsuleW,
-        height: capsuleH
-    )
+    // Full Glowing Circle
+    let fullCircleRect = CGRect(x: center.x - r, y: center.y - r, width: r * 2.0, height: r * 2.0)
+    let fullCirclePath = CGPath(ellipseIn: fullCircleRect, transform: nil)
 
-    // Second Capsule (Right, overlapping, slightly lower)
-    let rightCapsuleRect = CGRect(
-        x: w / 2.0 - 45.0 * scale,
-        y: h / 2.0 - 220.0 * scale,
-        width: capsuleW,
-        height: capsuleH
-    )
-
-    let leftPath = CGPath(roundedRect: leftCapsuleRect, cornerWidth: capsuleR, cornerHeight: capsuleR, transform: nil)
-    let rightPath = CGPath(roundedRect: rightCapsuleRect, cornerWidth: capsuleR, cornerHeight: capsuleR, transform: nil)
-
-    // A. Outer Glow Layer
+    // Outer Glow for Full Circle
     ctx.saveGState()
-    let glowColor = NSColor.white.withAlphaComponent(0.45).cgColor
-    ctx.setShadow(offset: .zero, blur: 24.0 * scale, color: glowColor)
-
-    ctx.addPath(leftPath)
-    ctx.setStrokeColor(NSColor.white.cgColor)
-    ctx.setLineWidth(strokeWidth)
-    ctx.strokePath()
-
-    ctx.addPath(rightPath)
+    ctx.setShadow(offset: .zero, blur: 28.0 * scale, color: NSColor.white.withAlphaComponent(0.50).cgColor)
+    ctx.addPath(fullCirclePath)
     ctx.setStrokeColor(NSColor.white.cgColor)
     ctx.setLineWidth(strokeWidth)
     ctx.strokePath()
     ctx.restoreGState()
 
-    // B. Sharp Crisp Core Layer
+    // Crisp Core for Full Circle
     ctx.saveGState()
-    ctx.addPath(leftPath)
-    ctx.setStrokeColor(NSColor(white: 0.98, alpha: 1.0).cgColor)
-    ctx.setLineWidth(strokeWidth)
-    ctx.strokePath()
-
-    ctx.addPath(rightPath)
+    ctx.addPath(fullCirclePath)
     ctx.setStrokeColor(NSColor(white: 0.98, alpha: 1.0).cgColor)
     ctx.setLineWidth(strokeWidth)
     ctx.strokePath()
     ctx.restoreGState()
 
-    // C. Micro Intersection Accent
-    // Clear squircle clip
+    // 5. The Top Fold Flap
+    // Crease line between leftAngle (124°) and rightAngle (56°)
+    let leftAngle = CGFloat(124.0 * .pi / 180.0)
+    let rightAngle = CGFloat(56.0 * .pi / 180.0)
+    let leftPt = CGPoint(x: center.x + r * cos(leftAngle), y: center.y + r * sin(leftAngle))
+    let rightPt = CGPoint(x: center.x + r * cos(rightAngle), y: center.y + r * sin(rightAngle))
+
+    let crease = CGMutablePath()
+    crease.move(to: leftPt)
+    crease.addLine(to: rightPt)
+
+    // Flap downward fold curve
+    let foldApex = CGPoint(x: center.x, y: center.y + r * 0.38)
+    let foldFlap = CGMutablePath()
+    foldFlap.move(to: leftPt)
+    foldFlap.addQuadCurve(to: rightPt, control: foldApex)
+
+    // Flap Interior Fill (subtle darker plane with depth)
+    let flapClosedPath = CGMutablePath()
+    flapClosedPath.move(to: leftPt)
+    flapClosedPath.addQuadCurve(to: rightPt, control: foldApex)
+    flapClosedPath.addLine(to: rightPt)
+    flapClosedPath.addArc(center: center, radius: r, startAngle: rightAngle, endAngle: leftAngle, clockwise: false)
+    flapClosedPath.closeSubpath()
+
+    ctx.saveGState()
+    ctx.addPath(flapClosedPath)
+    ctx.setFillColor(NSColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 0.85).cgColor)
+    ctx.fillPath()
     ctx.restoreGState()
 
+    // Soft Drop Shadow under Fold Flap
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -14.0 * scale), blur: 18.0 * scale, color: NSColor.black.withAlphaComponent(0.90).cgColor)
+    ctx.addPath(foldFlap)
+    ctx.setStrokeColor(NSColor(red: 0.05, green: 0.05, blue: 0.06, alpha: 1.0).cgColor)
+    ctx.setLineWidth(strokeWidth + 6 * scale)
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    // Flap Outer Glow
+    ctx.saveGState()
+    ctx.setShadow(offset: .zero, blur: 24.0 * scale, color: NSColor.white.withAlphaComponent(0.65).cgColor)
+    ctx.addPath(foldFlap)
+    ctx.setStrokeColor(NSColor.white.cgColor)
+    ctx.setLineWidth(strokeWidth)
+    ctx.setLineCap(.round)
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    // Flap Crisp Core
+    ctx.saveGState()
+    ctx.addPath(foldFlap)
+    ctx.setStrokeColor(NSColor(white: 1.0, alpha: 1.0).cgColor)
+    ctx.setLineWidth(strokeWidth)
+    ctx.setLineCap(.round)
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    // Elegant Crease Line
+    ctx.saveGState()
+    ctx.addPath(crease)
+    ctx.setStrokeColor(NSColor(white: 1.0, alpha: 0.35).cgColor)
+    ctx.setLineWidth(2.0 * scale)
+    ctx.setLineDash(phase: 0, lengths: [6.0 * scale, 5.0 * scale])
+    ctx.strokePath()
+    ctx.restoreGState()
+
+    ctx.restoreGState() // squircle clip
     image.unlockFocus()
     return image
 }
 
 // Generate 1024x1024
-let icon1024 = renderClippoIcon(size: CGSize(width: 1024, height: 1024))
+let icon1024 = renderFoldedCircleIcon(size: CGSize(width: 1024, height: 1024))
 if let tiff = icon1024.tiffRepresentation,
    let rep = NSBitmapImageRep(data: tiff),
    let pngData = rep.representation(using: .png, properties: [:]) {
@@ -152,7 +187,7 @@ let sizes: [(String, CGFloat)] = [
 ]
 
 for (filename, s) in sizes {
-    let img = renderClippoIcon(size: CGSize(width: s, height: s))
+    let img = renderFoldedCircleIcon(size: CGSize(width: s, height: s))
     if let tiff = img.tiffRepresentation,
        let rep = NSBitmapImageRep(data: tiff),
        let data = rep.representation(using: .png, properties: [:]) {
