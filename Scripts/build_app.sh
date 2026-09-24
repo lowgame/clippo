@@ -31,8 +31,4 @@ fi
 echo "=== [3/3] İmzalanıyor: Ad-hoc Codesign ==="
 codesign --force --deep --sign - "$APP_BUNDLE"
 
-# Sync to root Clippo.app for convenient local testing
-rm -rf Clippo.app
-cp -R "$APP_BUNDLE" Clippo.app
-
 echo "Tamamlandı: $APP_BUNDLE başarıyla oluşturuldu!"
