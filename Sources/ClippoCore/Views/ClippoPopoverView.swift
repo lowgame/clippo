@@ -10,7 +10,10 @@ public struct ClippoPopoverView: View {
     @State private var currentMatchIndex: Int = 0
     @State private var hoveredItemId: UUID? = nil
     @State private var isCopiedOverlayVisible: Bool = false
+    @State private var isSavedToCloudOverlayVisible: Bool = false
+    @State private var showSettingsPopover: Bool = false
     @State private var isCopying: Bool = false
+    @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @FocusState private var isSearchFocused: Bool
     @Environment(\.colorScheme) var colorScheme
 
@@ -192,8 +195,90 @@ public struct ClippoPopoverView: View {
                     .fill(MonocleTheme.microBorder)
                     .frame(height: 1)
 
-                // Footer: Minimal Theme Mode Glyph
+                // Footer: Settings Popover + Theme Mode Glyph
                 HStack {
+                    // Settings Popover Button
+                    Button(action: {
+                        showSettingsPopover.toggle()
+                    }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 11.5, weight: .regular))
+                            .foregroundColor(MonocleTheme.neutral)
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Settings & Launch at Login")
+                    .popover(isPresented: $showSettingsPopover, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button(action: {
+                                launchManager.toggle()
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: launchManager.isEnabled ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(launchManager.isEnabled ? MonocleTheme.foreground : MonocleTheme.neutral)
+                                    Text("Launch at Login")
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundColor(MonocleTheme.foreground)
+                                }
+                                .padding(.vertical, 3)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+                                .background(MonocleTheme.microBorder)
+
+                            Button(action: {
+                                showSettingsPopover = false
+                                triggerCloudSaveHUD()
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "icloud")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(MonocleTheme.neutral)
+                                    Text("Save to iCloud")
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundColor(MonocleTheme.foreground)
+                                    Spacer()
+                                    Text("⌘S")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(MonocleTheme.neutral)
+                                }
+                                .padding(.vertical, 3)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+                                .background(MonocleTheme.microBorder)
+
+                            Button(action: {
+                                NSApplication.shared.terminate(nil)
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "power")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(MonocleTheme.neutral)
+                                    Text("Quit Clippo")
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundColor(MonocleTheme.foreground)
+                                    Spacer()
+                                    Text("⌘Q")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(MonocleTheme.neutral)
+                                }
+                                .padding(.vertical, 3)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(10)
+                        .frame(width: 190)
+                        .background(MonocleTheme.background)
+                    }
+
                     Spacer()
 
                     Button(action: {
@@ -250,6 +335,37 @@ public struct ClippoPopoverView: View {
                 .transition(.opacity)
                 .zIndex(1000)
             }
+
+            // Full-Window "saved to icloud" Feedback Overlay
+            if isSavedToCloudOverlayVisible {
+                ZStack {
+                    MonocleTheme.background.opacity(0.88)
+                        .edgesIgnoringSafeArea(.all)
+
+                    VStack(spacing: 8) {
+                        Image(systemName: "icloud.fill")
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundColor(MonocleTheme.foreground)
+
+                        Text("saved to icloud")
+                            .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                            .foregroundColor(MonocleTheme.foreground)
+                    }
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(MonocleTheme.background)
+                            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.6 : 0.2), radius: 20, x: 0, y: 6)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(MonocleTheme.microBorder, lineWidth: 1)
+                    )
+                }
+                .transition(.opacity)
+                .zIndex(1001)
+            }
         }
         .frame(width: 320)
         .background(MonocleTheme.background)
@@ -259,6 +375,9 @@ public struct ClippoPopoverView: View {
         }
         .onDisappear {
             hidePreview()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .clippoTriggerSave)) { _ in
+            triggerCloudSaveHUD()
         }
         .onReceive(NotificationCenter.default.publisher(for: .clippoSelectSlot)) { notification in
             if let idx = notification.object as? Int {
@@ -324,6 +443,21 @@ public struct ClippoPopoverView: View {
         let items = filteredItems
         if index >= 0 && index < items.count {
             select(item: items[index])
+        }
+    }
+
+    public func triggerCloudSaveHUD() {
+        storage.forceSaveToiCloud()
+        withAnimation(.easeOut(duration: 0.15)) {
+            isSavedToCloudOverlayVisible = true
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 850_000_000)
+            await MainActor.run {
+                withAnimation(.easeIn(duration: 0.2)) {
+                    isSavedToCloudOverlayVisible = false
+                }
+            }
         }
     }
 }

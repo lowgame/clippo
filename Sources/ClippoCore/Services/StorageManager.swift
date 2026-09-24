@@ -52,20 +52,29 @@ public final class StorageManager: ObservableObject {
     // MARK: - Persistence
 
     public func loadHistory() -> [ClipItem] {
-        // First try local
-        if let data = try? Data(contentsOf: localDataURL),
+        var localItems: [ClipItem]?
+        var localModDate: Date = .distantPast
+        if fileManager.fileExists(atPath: localDataURL.path),
+           let data = try? Data(contentsOf: localDataURL),
            let decoded = try? JSONDecoder().decode([ClipItem].self, from: data) {
-            return Array(decoded.prefix(Self.maxCapacity))
+            localItems = Array(decoded.prefix(Self.maxCapacity))
+            localModDate = (try? fileManager.attributesOfItem(atPath: localDataURL.path)[.modificationDate] as? Date) ?? .distantPast
         }
 
-        // Fallback to iCloud mirror if local empty/missing
+        var cloudItems: [ClipItem]?
+        var cloudModDate: Date = .distantPast
         if let cloudURL = iCloudDocsURL,
+           fileManager.fileExists(atPath: cloudURL.path),
            let data = try? Data(contentsOf: cloudURL),
            let decoded = try? JSONDecoder().decode([ClipItem].self, from: data) {
-            return Array(decoded.prefix(Self.maxCapacity))
+            cloudItems = Array(decoded.prefix(Self.maxCapacity))
+            cloudModDate = (try? fileManager.attributesOfItem(atPath: cloudURL.path)[.modificationDate] as? Date) ?? .distantPast
         }
 
-        return []
+        if let cloud = cloudItems, cloudModDate > localModDate {
+            return cloud
+        }
+        return localItems ?? cloudItems ?? []
     }
 
     public func saveHistory() {
@@ -78,8 +87,19 @@ public final class StorageManager: ObservableObject {
         // Asynchronous mirror to iCloud Drive
         if let cloudURL = iCloudDocsURL {
             DispatchQueue.global(qos: .utility).async {
-                try? data.write(to: cloudURL, options: .atomic)
+                try? data.write(to: cloudURL)
             }
+        }
+    }
+
+    public func forceSaveToiCloud() {
+        let trimmed = Array(items.prefix(Self.maxCapacity))
+        guard let data = try? JSONEncoder().encode(trimmed) else { return }
+
+        try? data.write(to: localDataURL, options: .atomic)
+
+        if let cloudURL = iCloudDocsURL {
+            try? data.write(to: cloudURL)
         }
     }
 

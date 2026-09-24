@@ -28,6 +28,12 @@ final class ClippoPanel: NSPanel {
             return
         }
 
+        // Cmd+S: Save to iCloud with HUD feedback
+        if (event.charactersIgnoringModifiers?.lowercased() == "s" || event.keyCode == 1) && event.modifierFlags.contains(.command) {
+            NotificationCenter.default.post(name: .clippoTriggerSave, object: nil)
+            return
+        }
+
         // Check if text input is active
         let isTextInputActive = (firstResponder is NSTextView)
 
@@ -83,9 +89,25 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         // App Menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Clippo")
+
+        let launchAtLoginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLoginAction), keyEquivalent: "")
+        launchAtLoginItem.target = self
+        launchAtLoginItem.state = LaunchAtLoginManager.shared.isEnabled ? .on : .off
+        appMenu.addItem(launchAtLoginItem)
+
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "Quit Clippo", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        // File Menu
+        let fileMenuItem = NSMenuItem()
+        let fileMenu = NSMenu(title: "File")
+        let saveItem = NSMenuItem(title: "Save to iCloud", action: #selector(saveToiCloudAction), keyEquivalent: "s")
+        saveItem.target = self
+        fileMenu.addItem(saveItem)
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
 
         // Edit Menu
         let editMenuItem = NSMenuItem()
@@ -102,6 +124,15 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         mainMenu.addItem(editMenuItem)
 
         NSApp.mainMenu = mainMenu
+    }
+
+    @objc private func toggleLaunchAtLoginAction() {
+        LaunchAtLoginManager.shared.toggle()
+        setupMainMenu()
+    }
+
+    @objc private func saveToiCloudAction() {
+        NotificationCenter.default.post(name: .clippoTriggerSave, object: nil)
     }
 
     // MARK: - Status Item Setup (Template Overlapping Pills Icon)
@@ -251,5 +282,6 @@ extension Notification.Name {
     public static let clippoCopyCurrentMatch = Notification.Name("clippoCopyCurrentMatch")
     public static let clippoNextMatch = Notification.Name("clippoNextMatch")
     public static let clippoPrevMatch = Notification.Name("clippoPrevMatch")
+    public static let clippoTriggerSave = Notification.Name("clippoTriggerSave")
 }
 
