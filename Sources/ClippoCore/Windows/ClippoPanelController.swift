@@ -79,6 +79,7 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
         setupStatusItem()
         setupPanel()
         monitor.startMonitoring()
+        setupFamilyOObservers()
     }
 
     // MARK: - Main Menu (Ensures Edit shortcuts Cmd+C, Cmd+V, Cmd+A, Cmd+Z work)
@@ -274,6 +275,71 @@ public final class ClippoPanelController: NSObject, NSWindowDelegate {
 
     public func selectSlot(_ index: Int) {
         NotificationCenter.default.post(name: .clippoSelectSlot, object: index)
+    }
+
+    // MARK: - Family O Integration
+
+    private func setupFamilyOObservers() {
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleFamilyOToggle),
+            name: Notification.Name("family.o.clippo.toggle"),
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleFamilyOSaveAll),
+            name: Notification.Name("family.o.saveAll"),
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleFamilyOHubState),
+            name: Notification.Name("family.o.hubState"),
+            object: nil
+        )
+        checkFamilyOHubRunning()
+    }
+
+    private func checkFamilyOHubRunning() {
+        let isHubRunning = NSWorkspace.shared.runningApplications.contains {
+            $0.bundleIdentifier == "com.family-o.hub" || $0.localizedName?.lowercased() == "o"
+        }
+        statusItem?.isVisible = !isHubRunning
+    }
+
+    @objc private func handleFamilyOHubState(_ notification: Notification) {
+        if let isRunning = notification.userInfo?["isRunning"] as? Bool {
+            statusItem?.isVisible = !isRunning
+        } else {
+            checkFamilyOHubRunning()
+        }
+    }
+
+    @objc private func handleFamilyOToggle() {
+        guard let panel = panel else { return }
+        if panel.isVisible {
+            closePanel()
+        } else {
+            if let button = statusItem?.button, statusItem?.isVisible == true {
+                showPanel(relativeTo: button)
+            } else {
+                if let screen = NSScreen.main {
+                    let frame = screen.visibleFrame
+                    let x = frame.maxX - panel.frame.width - 24
+                    let y = frame.maxY - panel.frame.height - 8
+                    panel.setFrameOrigin(NSPoint(x: max(10, x), y: y))
+                }
+                ThemeManager.shared.applyAppearance(to: panel)
+                panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                panel.makeFirstResponder(panel.contentView)
+            }
+        }
+    }
+
+    @objc private func handleFamilyOSaveAll() {
+        NotificationCenter.default.post(name: .clippoTriggerSave, object: nil)
     }
 }
 
